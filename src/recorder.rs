@@ -37,7 +37,43 @@ impl<T> AsyncTasksRecorder<T>
         where Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
               E: Send {
-        todo!()
+        let mut launch_flag = None;
+
+        self.recorder.entry_async(task_id.clone()).await
+            .and_modify(|v| {
+                if *v != TaskState::Failed {
+                    launch_flag = Some(v.clone());
+                    return;
+                }
+                *v = TaskState::Working;
+            })
+            // not found
+            .or_insert_with(|| {
+                TaskState::Working
+            });
+
+        if let Some(reason) = launch_flag {
+            return Err((reason, task));
+        }
+
+        // start
+        let recorder = self.recorder.clone();
+        tokio::spawn(async move {
+            let task_res = task.await;
+            if task_res.is_ok() {
+                recorder.update_async(
+                    &task_id,
+                    |_, v| *v = TaskState::Success)
+                    .await.unwrap();
+            } else {
+                recorder.update_async(
+                    &task_id,
+                    |_, v| *v = TaskState::Failed)
+                    .await.unwrap();
+            }
+        });
+
+        Ok(())
     }
 
     pub async fn launch_block<Fut, R, E>(&self, task_id: T, task: Fut) -> Result<(), (TaskState, Fut)>
