@@ -6,12 +6,13 @@ use crate::*;
 
 #[derive(Debug, Clone)]
 pub struct AsyncTasksRecorder<T>
-    where T: Eq + Hash + Clone + Send + 'static {
+    where T: Eq + Hash + Clone + Send + Sync + 'static {
     recorder: Arc<scc::HashMap<T, TaskState>>,
 }
 
+/// Public interfaces.
 impl<T> AsyncTasksRecorder<T>
-    where T: Eq + Hash + Clone + Send + 'static {
+    where T: Eq + Hash + Clone + Send + Sync + 'static {
     /// Create a completely new `AsyncTasksRecoder`.
     pub async fn new() -> Self {
         AsyncTasksRecorder {
@@ -59,18 +60,7 @@ impl<T> AsyncTasksRecorder<T>
         // start
         let recorder = self.recorder.clone();
         tokio::spawn(async move {
-            let task_res = task.await;
-            if task_res.is_ok() {
-                recorder.update_async(
-                    &task_id,
-                    |_, v| *v = TaskState::Success)
-                    .await.unwrap();
-            } else {
-                recorder.update_async(
-                    &task_id,
-                    |_, v| *v = TaskState::Failed)
-                    .await.unwrap();
-            }
+            Self::launch_task_fut(&recorder, task_id, task).await;
         });
 
         Ok(())
@@ -99,5 +89,33 @@ impl<T> AsyncTasksRecorder<T>
     /// Get a reference of the internal map.
     pub fn get_recorder_ref(&self) -> &scc::HashMap<T, TaskState> {
         &self.recorder
+    }
+}
+
+/// Private tools.
+impl<T> AsyncTasksRecorder<T>
+    where T: Eq + Hash + Clone + Send + Sync + 'static {
+    /// The async function to execute launched tasks.
+    async fn launch_task_fut<Fut, R, E>(
+        recorder: &scc::HashMap<T, TaskState>,
+        task_id: T, task: Fut)
+        where Fut: Future<Output=Result<R, E>> + Send + 'static,
+              R: Send,
+              E: Send {
+        // execute task
+        let task_res = task.await;
+
+        // handle result
+        if task_res.is_ok() {
+            recorder.update_async(
+                &task_id,
+                |_, v| *v = TaskState::Success)
+                .await.unwrap();
+        } else {
+            recorder.update_async(
+                &task_id,
+                |_, v| *v = TaskState::Failed)
+                .await.unwrap();
+        }
     }
 }
