@@ -87,8 +87,9 @@ pub async fn test_simple_launch_check_revoke_loop(task_num: usize, redo_num: usi
                 assert_eq!(manager.query_task_state(&task_id).await, TaskState::NotFound,
                            "Initial state should be NotFound {}", task_id);
                 let res = manager.launch(task_id.clone(), task).await;
-                assert!(res.is_ok(),
-                        "Launch should success {}", task_id);
+                if let Err((state, _)) = res {
+                    panic!("Launch should success {}, but res state: {:?}", task_id, state);
+                }
                 assert_ne!(manager.query_task_state(&task_id).await, TaskState::NotFound,
                            "Shouldn't be NotFound after launch {}", task_id);
                 assert_ne!(manager.query_task_state(&task_id).await, TaskState::Failed,

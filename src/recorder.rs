@@ -134,8 +134,7 @@ impl<K> AsyncTasksRecorder<K>
         let revoke_res = revoke_task.await;
         match revoke_res {
             Ok(r) => {
-                self.recorder.update_async(target_task_id,
-                                           |_, v| *v = TaskState::NotFound).await;
+                self.recorder.remove_async(target_task_id).await;
                 Ok(r)
             }
             Err(e) => {
