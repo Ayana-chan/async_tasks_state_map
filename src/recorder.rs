@@ -4,6 +4,8 @@ use std::hash::Hash;
 use std::sync::Arc;
 use crate::*;
 
+// TODO T可能不需要clone
+
 #[derive(Debug, Clone)]
 pub struct AsyncTasksRecorder<T>
     where T: Eq + Hash + Clone + Send + Sync + 'static {
@@ -14,7 +16,7 @@ pub struct AsyncTasksRecorder<T>
 impl<K> AsyncTasksRecorder<K>
     where K: Eq + Hash + Clone + Send + Sync + 'static {
     /// Create a completely new `AsyncTasksRecoder`.
-    pub async fn new() -> Self {
+    pub fn new() -> Self {
         AsyncTasksRecorder {
             recorder: scc::HashMap::new().into(),
         }
