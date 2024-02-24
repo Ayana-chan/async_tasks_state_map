@@ -54,3 +54,15 @@ So you may get:
     ↓                      |
 Failed <--> Working --> Success
 ```
+
+# Why or why not use `Arc` to store `task_id`
+
+If you don't use `Arc`, all `task_id` is stored in `scc::HashMap`.
+But it has to be cloned when query or update the task's state.
+
+However, if you use `Arc`, only `Arc` is stored in `scc::HashMap`,
+and the `task_id` is stored in heap independently,
+which may cause additional memory overhead.
+
+Make your own decision on whether to use `Arc` or not.
+
