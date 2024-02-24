@@ -119,15 +119,16 @@ impl<K> AsyncTasksRecorder<K>
         let ent = self.recorder.get_async(target_task_id).await;
         match ent {
             Some(mut ent) => {
-                let state = ent.get();
+                let state = ent.get_mut();
                 if *state != TaskState::Success {
                     return Err(RevokeFailReason::NotSuccess(state.clone(), revoke_task));
                 }
-                *ent.get_mut() = TaskState::Revoking;
+                *state = TaskState::Revoking;
             }
             None => return Err(RevokeFailReason::NotSuccess(TaskState::NotFound, revoke_task)),
         };
 
+        // start to revoke
         let revoke_res = revoke_task.await;
         match revoke_res {
             Ok(r) => {
