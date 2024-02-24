@@ -169,6 +169,13 @@ impl<K> AsyncTasksRecorder<K>
     }
 }
 
+impl<T> Default for AsyncTasksRecorder<T>
+    where T: Eq + Hash + Clone + Send + Sync + 'static{
+    fn default() -> Self {
+        AsyncTasksRecorder::new()
+    }
+}
+
 /// Private tools.
 impl<T> AsyncTasksRecorder<T>
     where T: Eq + Hash + Clone + Send + Sync + 'static {
