@@ -24,7 +24,7 @@ A recorder can only use **single** `task_id` type. The type of `task_id` should 
 > [async_tasks_recorder](https://crates.io/crates/async_tasks_recorder)
 is another implement depending on `HashSet`,
 which is easier to iterate every task in the same state.
-But you should not use that crate if you only focus on iterate only once state.
+But you should not use that crate if you only focus on iterating only one state.
 Instead, you can collect the tasks in certain state into an external `Arc<HashSet>`.
 
 # State Transition Diagram
@@ -41,3 +41,16 @@ NotFound --> Working --> Success
 - Can only launch when `NotFound` or `Failed`.
 - Can only revoke when `Success`.
 
+# Advices
+
+## Simplified State Transition Diagram
+
+- In some cases, `NotFound` can be equivalent to `Failed`.
+- In most cases, `Revoking` can be equivalent to `Success`.
+
+So you may get:
+```txt
+    ┌----------------------┐
+    ↓                      |
+Failed <--> Working --> Success
+```
