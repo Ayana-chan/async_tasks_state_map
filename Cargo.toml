@@ -2,6 +2,12 @@
 name = "async_tasks_state_map"
 version = "0.1.0"
 edition = "2021"
+description = "A struct for recording execution status of async tasks with async methods."
+license = "MIT OR Apache-2.0"
+keywords = ["async", "tokio", "record", "query", "task"]
+categories = ["asynchronous"]
+readme = "README.md"
+repository = "https://github.com/Ayana-chan/async_tasks_state_map"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
