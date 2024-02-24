@@ -4,6 +4,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 use crate::*;
 
+/// Thread-safe. Can be shared by `cloning` (`Arc` is used internally).
 #[derive(Debug, Clone)]
 pub struct AsyncTasksRecorder<T>
     where T: Eq + Hash + Clone + Send + Sync + 'static {
@@ -34,7 +35,12 @@ impl<K> AsyncTasksRecorder<K>
         }
     }
 
-    /// Launch a task and execute it asynchronously
+    /// Launch a task and execute it asynchronously.
+    ///
+    /// Can only launch successfully when the target task is `NotFound` or `Failed`.
+    /// `Err` would include the task's current state.
+    ///
+    /// After `launch().await` returns `Ok`, the state of the task is at least `Working`.
     pub async fn launch<Fut, R, E>(&self, task_id: K, task: Fut) -> Result<(), (TaskState, Fut)>
         where Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
@@ -67,7 +73,10 @@ impl<K> AsyncTasksRecorder<K>
         Ok(())
     }
 
-    /// Launch a task. Not return (keep awaiting) until the task finishes.
+    /// Launch a task.
+    ///
+    /// Not return (keep awaiting) until the task finishes if successfully launch.
+    /// `Err` would include the task's current state.
     pub async fn launch_block<Fut, R, E>(&self, task_id: K, task: Fut) -> Result<(), (TaskState, Fut)>
         where Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
@@ -110,6 +119,12 @@ impl<K> AsyncTasksRecorder<K>
     }
 
     /// Revoke target task with its `task_id` and a `Future` for revoking.
+    ///
+    /// If the target task is not `Success` (perhaps it is being revoked by another thread),
+    /// then this method would return `Err` immediately.
+    /// `Err` would include the task's current state.
+    ///
+    /// Not return (keep awaiting) until the task finishes if successfully start to revoke.
     pub async fn revoke_task_block<Q, Fut, R, E>(&self, target_task_id: &Q, revoke_task: Fut) -> Result<R, RevokeFailReason<Fut, E>>
         where K: Borrow<Q>,
               Q: Hash + Eq + ?Sized,
@@ -146,6 +161,11 @@ impl<K> AsyncTasksRecorder<K>
     /// Get a reference of the internal map.
     pub fn get_recorder_ref(&self) -> &scc::HashMap<K, TaskState> {
         &self.recorder
+    }
+
+    /// Get an cloned `Arc` of the internal map.
+    pub fn get_recorder_arc(&self) -> Arc<scc::HashMap<K, TaskState>> {
+        self.recorder.clone()
     }
 }
 

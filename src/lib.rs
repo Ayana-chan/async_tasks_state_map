@@ -41,6 +41,10 @@
 //! - Can only launch when `NotFound` or `Failed`.
 //! - Can only revoke when `Success`.
 //!
+//! # Usage
+//!
+//! Just look at the [`AsyncTasksRecorder`](AsyncTasksRecorder).
+//!
 
 mod models;
 mod recorder;
