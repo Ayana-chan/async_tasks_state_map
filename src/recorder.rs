@@ -11,8 +11,8 @@ pub struct AsyncTasksRecorder<T>
 }
 
 /// Public interfaces.
-impl<T> AsyncTasksRecorder<T>
-    where T: Eq + Hash + Clone + Send + Sync + 'static {
+impl<K> AsyncTasksRecorder<K>
+    where K: Eq + Hash + Clone + Send + Sync + 'static {
     /// Create a completely new `AsyncTasksRecoder`.
     pub async fn new() -> Self {
         AsyncTasksRecorder {
@@ -21,20 +21,21 @@ impl<T> AsyncTasksRecorder<T>
     }
 
     /// Create by a map.
-    pub fn new_with_task_manager(recorder: scc::HashMap<T, TaskState>) -> Self {
+    pub fn new_with_task_manager(recorder: scc::HashMap<K, TaskState>) -> Self {
         AsyncTasksRecorder {
             recorder: recorder.into(),
         }
     }
 
     /// Create by an `Arc` of map.
-    pub fn new_with_task_manager_arc(recorder: Arc<scc::HashMap<T, TaskState>>) -> Self {
+    pub fn new_with_task_manager_arc(recorder: Arc<scc::HashMap<K, TaskState>>) -> Self {
         AsyncTasksRecorder {
             recorder,
         }
     }
 
-    pub async fn launch<Fut, R, E>(&self, task_id: T, task: Fut) -> Result<(), (TaskState, Fut)>
+    /// Launch a task and execute it asynchronously
+    pub async fn launch<Fut, R, E>(&self, task_id: K, task: Fut) -> Result<(), (TaskState, Fut)>
         where Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
               E: Send {
@@ -66,28 +67,84 @@ impl<T> AsyncTasksRecorder<T>
         Ok(())
     }
 
-    pub async fn launch_block<Fut, R, E>(&self, task_id: T, task: Fut) -> Result<(), (TaskState, Fut)>
+    /// Launch a task. Not return (keep awaiting) until the task finishes.
+    pub async fn launch_block<Fut, R, E>(&self, task_id: K, task: Fut) -> Result<(), (TaskState, Fut)>
         where Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
               E: Send {
-        todo!()
+        let mut launch_flag = None;
+
+        self.recorder.entry_async(task_id.clone()).await
+            .and_modify(|v| {
+                if *v != TaskState::Failed {
+                    launch_flag = Some(v.clone());
+                    return;
+                }
+                *v = TaskState::Working;
+            })
+            // not found
+            .or_insert_with(|| {
+                TaskState::Working
+            });
+
+        if let Some(reason) = launch_flag {
+            return Err((reason, task));
+        }
+
+        // start (block)
+        let recorder = self.recorder.clone();
+        Self::launch_task_fut(&recorder, task_id, task).await;
+
+        Ok(())
     }
 
+    /// Query the target task's state.
     pub async fn query_task_state<Q>(&self, task_id: &Q) -> TaskState
-        where T: Borrow<Q>,
+        where K: Borrow<Q>,
               Q: Hash + Eq + ?Sized {
-        todo!()
+        let res = self.recorder.get_async(task_id).await;
+        match res {
+            Some(res) => res.get().clone(),
+            None => TaskState::NotFound,
+        }
     }
 
-    pub async fn revoke_task_block<Fut, R, E>(&self, target_task_id: T, revoke_task: Fut) -> Result<R, RevokeFailReason<Fut, E>>
-        where Fut: Future<Output=Result<R, E>> + Send + 'static,
+    /// Revoke target task with its `task_id` and a `Future` for revoking.
+    pub async fn revoke_task_block<Q, Fut, R, E>(&self, target_task_id: &Q, revoke_task: Fut) -> Result<R, RevokeFailReason<Fut, E>>
+        where K: Borrow<Q>,
+              Q: Hash + Eq + ?Sized,
+              Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
               E: Send {
-        todo!()
+        let ent = self.recorder.get_async(target_task_id).await;
+        match ent {
+            Some(mut ent) => {
+                let state = ent.get();
+                if *state != TaskState::Success {
+                    return Err(RevokeFailReason::NotSuccess(state.clone(), revoke_task));
+                }
+                *ent.get_mut() = TaskState::Revoking;
+            }
+            None => return Err(RevokeFailReason::NotSuccess(TaskState::NotFound, revoke_task)),
+        };
+
+        let revoke_res = revoke_task.await;
+        match revoke_res {
+            Ok(r) => {
+                self.recorder.update_async(target_task_id,
+                                           |_, v| *v = TaskState::NotFound).await;
+                Ok(r)
+            }
+            Err(e) => {
+                self.recorder.update_async(target_task_id,
+                                           |_, v| *v = TaskState::Success).await;
+                Err(RevokeFailReason::RevokeTaskError(e))
+            }
+        }
     }
 
     /// Get a reference of the internal map.
-    pub fn get_recorder_ref(&self) -> &scc::HashMap<T, TaskState> {
+    pub fn get_recorder_ref(&self) -> &scc::HashMap<K, TaskState> {
         &self.recorder
     }
 }

@@ -5,13 +5,13 @@ pub enum TaskState {
     Success,
     Failed,
     NotFound,
+    Revoking,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum RevokeFailReason<Fut, E>
     where Fut: Send,
           E: Send {
-    NotSuccess(Fut),
-    Revoking(Fut),
+    NotSuccess(TaskState, Fut),
     RevokeTaskError(E),
 }
