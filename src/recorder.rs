@@ -4,8 +4,6 @@ use std::hash::Hash;
 use std::sync::Arc;
 use crate::*;
 
-// TODO T可能不需要clone
-
 #[derive(Debug, Clone)]
 pub struct AsyncTasksRecorder<T>
     where T: Eq + Hash + Clone + Send + Sync + 'static {
