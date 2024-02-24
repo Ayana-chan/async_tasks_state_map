@@ -33,9 +33,9 @@
 //!     ┌------- Revoking ←-----┐
 //!     ↓                       |
 //! NotFound --> Working --> Success
-//!               ↑ |
-//!               | ↓
-//!             Failed
+//!                ↑ |
+//!                | ↓
+//!              Failed
 //! ```
 //!
 //! - Can only launch when `NotFound` or `Failed`.

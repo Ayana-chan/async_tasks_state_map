@@ -33,9 +33,9 @@ Instead, you can collect the tasks in certain state into an external `Arc<HashSe
     ┌------- Revoking ←-----┐
     ↓                       |
 NotFound --> Working --> Success
-              ↑ |
-              | ↓
-            Failed
+               ↑ |
+               | ↓
+             Failed
 ```
 
 - Can only launch when `NotFound` or `Failed`.
