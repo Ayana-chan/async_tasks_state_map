@@ -92,9 +92,7 @@ impl<K> AsyncTasksRecorder<K>
                 *v = TaskState::Working;
             })
             // not found
-            .or_insert_with(|| {
-                TaskState::Working
-            });
+            .or_insert(TaskState::Working);
 
         if let Some(reason) = launch_flag {
             return Err((reason, task));
@@ -156,6 +154,46 @@ impl<K> AsyncTasksRecorder<K>
                 Err(RevokeFailReason::RevokeTaskError(e))
             }
         }
+    }
+
+    /// Modify task's state atomically and forcefully. Not usually used.
+    ///
+    /// This method may break business, especially during revoking.
+    ///
+    /// If `target_state == TaskState::NotFound`, the `target_task_id` would be removed from the map.
+    pub async fn modify_state_force(&self, target_task_id: K, target_state: TaskState) {
+        if target_state == TaskState::NotFound {
+            self.recorder.remove_async(&target_task_id).await;
+            return;
+        }
+
+        self.recorder.entry_async(target_task_id).await
+            .and_modify(|v| *v = target_state.clone())
+            .or_insert(target_state);
+    }
+
+    /// Change task's state to `Success` atomically when task is `NotFound` or `Failed`.
+    ///
+    /// Wouldn't break business in most cases.
+    ///
+    /// - Return `Ok(task_state)` if succeed and the task was in `task_state` state.
+    /// - Return `Err(task_state)` if failed and the task was in `task_state` state.
+    pub async fn modify_to_success_before_work(&self, target_task_id: K) -> Result<TaskState, TaskState> {
+        let mut res: Result<TaskState, TaskState> = Ok(TaskState::NotFound);
+
+        self.recorder.entry_async(target_task_id).await
+            .and_modify(|v| {
+                if *v != TaskState::Failed {
+                    res = Err(v.clone());
+                    return;
+                }
+                *v = TaskState::Success;
+                res = Ok(TaskState::Failed);
+            })
+            // not found
+            .or_insert(TaskState::Success);
+
+        res
     }
 
     /// Get a reference of the internal map.
