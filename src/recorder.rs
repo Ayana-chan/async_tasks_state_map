@@ -6,9 +6,9 @@ use crate::*;
 
 /// Thread-safe. Can be shared by `cloning` (`Arc` is used internally).
 #[derive(Debug, Clone)]
-pub struct AsyncTasksRecorder<T>
-    where T: Eq + Hash + Clone + Send + Sync + 'static {
-    recorder: Arc<scc::HashMap<T, TaskState>>,
+pub struct AsyncTasksRecorder<K>
+    where K: Eq + Hash + Clone + Send + Sync + 'static {
+    recorder: Arc<scc::HashMap<K, TaskState>>,
 }
 
 /// Public interfaces.
@@ -207,20 +207,20 @@ impl<K> AsyncTasksRecorder<K>
     }
 }
 
-impl<T> Default for AsyncTasksRecorder<T>
-    where T: Eq + Hash + Clone + Send + Sync + 'static{
+impl<K> Default for AsyncTasksRecorder<K>
+    where K: Eq + Hash + Clone + Send + Sync + 'static{
     fn default() -> Self {
         AsyncTasksRecorder::new()
     }
 }
 
 /// Private tools.
-impl<T> AsyncTasksRecorder<T>
-    where T: Eq + Hash + Clone + Send + Sync + 'static {
+impl<K> AsyncTasksRecorder<K>
+    where K: Eq + Hash + Clone + Send + Sync + 'static {
     /// The async function to execute launched tasks.
     async fn launch_task_fut<Fut, R, E>(
-        recorder: &scc::HashMap<T, TaskState>,
-        task_id: T, task: Fut)
+        recorder: &scc::HashMap<K, TaskState>,
+        task_id: K, task: Fut)
         where Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
               E: Send {
