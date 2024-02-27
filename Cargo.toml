@@ -1,6 +1,6 @@
 [package]
 name = "async_tasks_state_map"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "A struct for recording execution status of async tasks with async methods."
 license = "MIT OR Apache-2.0"

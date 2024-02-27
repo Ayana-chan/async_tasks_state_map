@@ -201,7 +201,7 @@ impl<K> AsyncTasksRecorder<K>
 
     /// Change task's state to `Success` atomically when task is `NotFound` or `Failed`.
     ///
-    /// Wouldn't break business in most cases.
+    /// This method may break business, especially during revoking.
     ///
     /// - Return `Ok(task_state)` if succeed and the task was in `task_state` state.
     /// - Return `Err(task_state)` if failed and the task was in `task_state` state.
