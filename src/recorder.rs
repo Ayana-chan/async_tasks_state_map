@@ -37,7 +37,10 @@ impl<K> AsyncTasksRecorder<K>
 
     /// Launch a task and execute it asynchronously.
     ///
+    /// Return **immediately**.
+    ///
     /// Can only launch successfully when the target task is `NotFound` or `Failed`.
+    /// Return `Err` when the state does not meet the requirements.
     /// `Err` would include the task's current state.
     ///
     /// After `launch().await` returns `Ok`, the state of the task is at least `Working`.
@@ -75,9 +78,10 @@ impl<K> AsyncTasksRecorder<K>
 
     /// Launch a task.
     ///
-    /// Not return (keep awaiting) until the task finishes if successfully launch.
+    /// Not return (keep awaiting) until the task finishes when successfully launch.
     ///
     /// Can only launch successfully when the target task is `NotFound` or `Failed`.
+    /// **Immediately** return `Err` when the state does not meet the requirements.
     /// `Err` would include the task's current state.
     pub async fn launch_block<Fut, R, E>(&self, task_id: K, task: Fut) -> Result<Result<R, E>, (TaskState, Fut)>
         where Fut: Future<Output=Result<R, E>> + Send + 'static,
@@ -117,8 +121,10 @@ impl<K> AsyncTasksRecorder<K>
 
     /// Revoke target task with its `task_id` and a `Future` for revoking,  and execute it asynchronously.
     ///
+    /// Return **immediately**.
+    ///
     /// If the target task is not `Success` (perhaps it is being revoked by another thread),
-    /// then this method would return `Err` immediately.
+    /// then this method would return `Err`.
     /// `Err` would include the task's current state.
     pub async fn revoke_task<Q, Fut, R, E>(&self, target_task_id: &Q, revoke_task: Fut) -> Result<(), (TaskState, Fut)>
         where K: Borrow<Q>,
@@ -150,7 +156,7 @@ impl<K> AsyncTasksRecorder<K>
 
     /// Revoke target task with its `task_id` and a `Future` for revoking.
     ///
-    /// Not return (keep awaiting) until the task finishes if successfully start to revoke.
+    /// Not return (keep awaiting) until the task finishes when successfully start to revoke.
     ///
     /// If the target task is not `Success` (perhaps it is being revoked by another thread),
     /// then this method would return `Err` immediately.
