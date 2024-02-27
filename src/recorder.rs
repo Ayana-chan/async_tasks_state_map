@@ -73,7 +73,6 @@ impl<K> AsyncTasksRecorder<K>
         Ok(())
     }
 
-    // TODO launch结果
     /// Launch a task.
     ///
     /// Not return (keep awaiting) until the task finishes if successfully launch.
@@ -123,7 +122,7 @@ impl<K> AsyncTasksRecorder<K>
     /// If the target task is not `Success` (perhaps it is being revoked by another thread),
     /// then this method would return `Err` immediately.
     /// `Err` would include the task's current state.
-    pub async fn revoke_task<Q, Fut, R, E>(&self, target_task_id: &Q, revoke_task: Fut) -> Result<(), RevokeFailReason<Fut, E>>
+    pub async fn revoke_task<Q, Fut, R, E>(&self, target_task_id: &Q, revoke_task: Fut) -> Result<(), (TaskState, Fut)>
         where K: Borrow<Q>,
               Q: Hash + Eq + ?Sized + Clone + Send + Sync + 'static,
               Fut: Future<Output=Result<R, E>> + Send + 'static,
@@ -134,11 +133,11 @@ impl<K> AsyncTasksRecorder<K>
             Some(mut ent) => {
                 let state = ent.get_mut();
                 if *state != TaskState::Success {
-                    return Err(RevokeFailReason::NotSuccess(state.clone(), revoke_task));
+                    return Err((state.clone(), revoke_task));
                 }
                 *state = TaskState::Revoking;
             }
-            None => return Err(RevokeFailReason::NotSuccess(TaskState::NotFound, revoke_task)),
+            None => return Err((TaskState::NotFound, revoke_task)),
         };
 
         // start to revoke
@@ -158,7 +157,7 @@ impl<K> AsyncTasksRecorder<K>
     /// If the target task is not `Success` (perhaps it is being revoked by another thread),
     /// then this method would return `Err` immediately.
     /// `Err` would include the task's current state.
-    pub async fn revoke_task_block<Q, Fut, R, E>(&self, target_task_id: &Q, revoke_task: Fut) -> Result<R, RevokeFailReason<Fut, E>>
+    pub async fn revoke_task_block<Q, Fut, R, E>(&self, target_task_id: &Q, revoke_task: Fut) -> Result<Result<R, E>, (TaskState, Fut)>
         where K: Borrow<Q>,
               Q: Hash + Eq + ?Sized,
               Fut: Future<Output=Result<R, E>> + Send + 'static,
@@ -169,11 +168,11 @@ impl<K> AsyncTasksRecorder<K>
             Some(mut ent) => {
                 let state = ent.get_mut();
                 if *state != TaskState::Success {
-                    return Err(RevokeFailReason::NotSuccess(state.clone(), revoke_task));
+                    return Err((state.clone(), revoke_task));
                 }
                 *state = TaskState::Revoking;
             }
-            None => return Err(RevokeFailReason::NotSuccess(TaskState::NotFound, revoke_task)),
+            None => return Err((TaskState::NotFound, revoke_task)),
         };
 
         // start to revoke (block)
@@ -268,24 +267,21 @@ impl<K> AsyncTasksRecorder<K>
     /// The async function to execute `Future` to revoke a task.
     async fn revoke_task_fut<Q, Fut, R, E>(
         recorder: &scc::HashMap<K, TaskState>,
-        target_task_id: &Q, revoke_task: Fut) -> Result<R, RevokeFailReason<Fut, E>>
+        target_task_id: &Q, revoke_task: Fut) -> Result<Result<R, E>, (TaskState, Fut)>
         where K: Borrow<Q>,
               Q: Hash + Eq + ?Sized,
-            Fut: Future<Output=Result<R, E>> + Send + 'static,
+              Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
               E: Send {
         let revoke_res = revoke_task.await;
 
-        match revoke_res {
-            Ok(r) => {
-                recorder.remove_async(target_task_id).await;
-                Ok(r)
-            }
-            Err(e) => {
-                recorder.update_async(target_task_id,
-                                      |_, v| *v = TaskState::Success).await;
-                Err(RevokeFailReason::RevokeTaskError(e))
-            }
+        if revoke_res.is_ok() {
+            recorder.remove_async(target_task_id).await;
+        } else {
+            recorder.update_async(target_task_id,
+                                  |_, v| *v = TaskState::Success).await;
         }
+
+        Ok(revoke_res)
     }
 }
