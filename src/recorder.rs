@@ -67,7 +67,7 @@ impl<K> AsyncTasksRecorder<K>
         // start
         let recorder = self.recorder.clone();
         tokio::spawn(async move {
-            Self::launch_task_fut(&recorder, task_id, task).await;
+            let _ = Self::launch_task_fut(&recorder, task_id, task).await;
         });
 
         Ok(())
@@ -79,7 +79,7 @@ impl<K> AsyncTasksRecorder<K>
     ///
     /// Can only launch successfully when the target task is `NotFound` or `Failed`.
     /// `Err` would include the task's current state.
-    pub async fn launch_block<Fut, R, E>(&self, task_id: K, task: Fut) -> Result<(), (TaskState, Fut)>
+    pub async fn launch_block<Fut, R, E>(&self, task_id: K, task: Fut) -> Result<Result<R, E>, (TaskState, Fut)>
         where Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
               E: Send {
@@ -101,9 +101,7 @@ impl<K> AsyncTasksRecorder<K>
         }
 
         // start (block)
-        Self::launch_task_fut(&self.recorder, task_id, task).await;
-
-        Ok(())
+        Self::launch_task_fut(&self.recorder, task_id, task).await
     }
 
     /// Query the target task's state.
@@ -244,6 +242,7 @@ impl<K> AsyncTasksRecorder<K>
     async fn launch_task_fut<Fut, R, E>(
         recorder: &scc::HashMap<K, TaskState>,
         task_id: K, task: Fut)
+        -> Result<Result<R, E>, (TaskState, Fut)>
         where Fut: Future<Output=Result<R, E>> + Send + 'static,
               R: Send,
               E: Send {
@@ -262,12 +261,15 @@ impl<K> AsyncTasksRecorder<K>
                 |_, v| *v = TaskState::Failed)
                 .await.unwrap();
         }
+
+        Ok(task_res)
     }
 
     /// The async function to execute `Future` to revoke a task.
     async fn revoke_task_fut<Q, Fut, R, E>(
         recorder: &scc::HashMap<K, TaskState>,
-        target_task_id: &Q, revoke_task: Fut) -> Result<Result<R, E>, (TaskState, Fut)>
+        target_task_id: &Q, revoke_task: Fut)
+        -> Result<Result<R, E>, (TaskState, Fut)>
         where K: Borrow<Q>,
               Q: Hash + Eq + ?Sized,
               Fut: Future<Output=Result<R, E>> + Send + 'static,
